@@ -761,6 +761,27 @@ class Reader
     flags, _ = work.unpack 'v'
     worksheet.selected = flags & 0x0200 > 0
   end
+
+  def read_merged_cells worksheet, work, pos, len
+    # This record contains the addresses of merged cell ranges in the current sheet.
+    # Record MERGEDCELLS, BIFF8:
+    # Offset  Size  Contents
+    # 0	      var.	Cell range address list with merged ranges (➜ 2.5.15)
+    # If the record size exceeds the limit, it is not continued with a CONTINUE record,
+    # but another self-contained MERGEDCELLS record is started. The limit of 8224 bytes
+    # per record results in a maximum number of 1027 merged ranges.
+
+    worksheet.merged_cells.push *read_range_address_list(work, len)
+    #
+    # A cell range address list consists of a field with the number of ranges and the list
+    # of the range addresses.
+    # Cell range address list, BIFF2-BIFF8:
+    # Offset  Size          Contents
+    # 0       2             Number of following cell range addresses (nm)
+    # 2	      6∙nm or 8∙nm  List of nm cell range addresses (➜ 2.5.14)
+    #
+  end
+
   def read_workbook
     worksheet = nil
     previous_op = nil
@@ -843,6 +864,10 @@ class Reader
         read_hlink worksheet, work, pos, len
       when :window2
         read_window2 worksheet, work, pos, len
+      when :mergedcells # ○○ MERGEDCELLS	➜ 5.67
+        read_merged_cells worksheet, work, pos, len
+      when :protect, :password
+        read_sheet_protection worksheet, op, work
       else
         if ROW_BLOCK_OPS.include?(op)
           set_missing_row_address worksheet, work, pos, len
@@ -1039,6 +1064,12 @@ class Reader
     fmt.pattern_fg_color = COLOR_CODES[xf_pattern & 0x007f] || :border
     fmt.pattern_bg_color = COLOR_CODES[xf_pattern & 0x3f80] || :pattern_bg
     @workbook.add_format fmt
+  end
+  def read_sheet_protection worksheet, op, data
+    case op
+    when :protect: worksheet.protect! if data.unpack('v').first == 1
+    when :password: worksheet.password_hash = data.unpack('v').first
+    end
   end
   def set_cell worksheet, row, column, xf, value=nil
     cells = @current_row_block[[worksheet, row]] ||= Row.new(nil, row)
