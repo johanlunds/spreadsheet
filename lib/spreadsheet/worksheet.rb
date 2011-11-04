@@ -28,7 +28,7 @@ module Spreadsheet
     include Spreadsheet::Encodings
     include Enumerable
     attr_accessor :name, :selected, :workbook, :password_hash
-    attr_reader :rows, :columns, :merged_cells
+    attr_reader :rows, :columns
     def initialize opts={}
       @default_format = nil
       @selected = opts[:selected]
@@ -38,7 +38,6 @@ module Spreadsheet
       @rows = []
       @columns = []
       @links = {}
-      @merged_cells = []
       @protected = false
       @password_hash = 0
     end
@@ -271,12 +270,6 @@ module Spreadsheet
     # See also Row#[]=.
     def []= row, column, value
       row(row)[column] = value
-    end
-    ##
-    # Merges multiple cells into one.
-    def merge_cells start_row, start_col, end_row, end_col
-      # FIXME enlarge or dup check
-      @merged_cells.push [start_row, end_row, start_col, end_col]
     end
     private
     def index_of_first ary # :nodoc:
